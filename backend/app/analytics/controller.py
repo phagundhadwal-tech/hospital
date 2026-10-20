@@ -15,10 +15,13 @@ from app.analytics.filters import Filters
 from app.analytics.models import (
     BedAvailabilityResponse,
     DataQualityResponse,
+    DataRangeResponse,
     DeptActivityResponse,
     KPIResponse,
     MonthlyTrendResponse,
+    NurseInsightsResponse,
     PatientFlowResponse,
+    RecentArrivalsResponse,
 )
 from app.repositories import sql_repo
 
@@ -41,6 +44,18 @@ def get_patient_flow(db, f: Filters) -> PatientFlowResponse:
 
 def get_bed_availability(db, f: Filters) -> BedAvailabilityResponse:
     return BedAvailabilityResponse(**svc.bed_availability(db, f.department_id))
+
+
+def get_nurse_insights(db, f: Filters) -> NurseInsightsResponse:
+    return NurseInsightsResponse(**svc.nurse_insights(db, f))
+
+
+def get_recent_arrivals(db, f: Filters) -> RecentArrivalsResponse:
+    return RecentArrivalsResponse(**svc.recent_arrivals(db, f))
+
+
+def get_data_range(db, f: Filters) -> DataRangeResponse:
+    return DataRangeResponse(**svc.data_range(db, f))
 
 
 def get_departments(db, f: Filters) -> list[dict]:

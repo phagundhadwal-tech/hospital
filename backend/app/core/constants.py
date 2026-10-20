@@ -28,7 +28,11 @@ DEFAULT_TABLE_NAMES: dict[str, str] = {
 }
 
 # ── Visit_Status values ───────────────────────────────────────────────────────
-STATUS_ONGOING = "Ongoing"
+STATUS_ONGOING   = "Ongoing"
+STATUS_CANCELLED = "Cancelled"
+
+# Placeholder the V6 data uses for visits that were not cancelled.
+REASON_NOT_APPLICABLE = "Not Applicable"
 
 # ── Bed_Status values ─────────────────────────────────────────────────────────
 BED_OCCUPIED    = "Occupied"

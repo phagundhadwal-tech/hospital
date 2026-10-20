@@ -29,6 +29,24 @@ Each date range is applied to the timestamp that defines the metric:
 | **Bed Occupancy %** | Beds | Bed_Status | `Occupied ÷ Operational × 100` – the same denominator for the KPI card, gauge and every ward card; 0 when there are no operational beds |
 | Ward occupancy | Wards ⟕ Beds | | per ward, same formula |
 
+### Doctor / nurse metrics
+Averages use only rows where both timestamps exist and the duration is ≥ 0; the response carries the sample size (`*_n`).
+
+| Metric | Table | Formula |
+|---|---|---|
+| Waiting to be Seen | Patient_Visits | `Visit_Status='Ongoing'` AND no `Consultation_Start_Time` AND no `Admission_Time`. Live snapshot, department filter only |
+| Time at each stage | Patient_Visits | Registration→Triage, Triage→Consultation start, Consultation start→end; visits registered in range. `Triage_Time` is empty for many visits, so the first two use fewer rows |
+| Avg Length of Stay | Patient_Visits | mean `Discharge_Time − Admission_Time`, discharges in range (hours; shown as days from 48 h) |
+| Arrivals by hour | Patient_Visits | count of visits by hour of `Registration_Time`, always 24 buckets |
+| Cancellation reasons | Patient_Visits | cancelled visits registered in range grouped by `Reason_for_cancellation` (`Not Applicable`/empty → "Not recorded"); top 6 plus "Other reasons" |
+| Arrivals (Overview) | Patient_Visits | visits per day by `Visit_Type` for the chosen dates; days with no visits show 0. Windows over 92 days are summed per week (Monday start), and the window is capped at 366 days. With no dates it is the 14 days ending on the latest `Registration_Time` in scope (not the wall clock) |
+| Overview date presets | Patient_Visits | "Last N days" end on the latest day that has data (`GET /analytics/data-range`), not on today. "All time" sends no limit to the cards. The period filter changes Admissions, Discharges, Avg Wait, Avg Bed Stay and the arrivals chart; beds, Active Patients and Waiting to be Seen stay live |
+| Beds by Ward / Department | Wards ⟕ Beds | occupied, free and maintenance bed counts of the current snapshot (no percentage) |
+| Busiest wards | Wards ⟕ Beds | top 5 wards by occupancy (same formula as above) |
+| Current patients by age | Patient_Visits ⋈ Patients | age today (from `Date_Of_Birth`) of every currently admitted patient, in 4 groups |
+| Staff on each shift | Staff | count of Nurses and Doctors per `Staff_Shift`, in the caller's department |
+| Avg Bed Stay | Bed_Assignments ⋈ Beds ⋈ Wards | mean `Assignment_End − Assignment_Start` for finished assignments ending in range, beds in the caller's department wards (assignments to unknown Bed_IDs are excluded by the join) |
+
 Status values in the V6 data: `Visit_Status` = Completed / Cancelled / Ongoing; `Bed_Status` = Available / Occupied / Maintenance (no `Reserved` beds exist, so that card correctly shows 0).
 
 ## Data-quality rules

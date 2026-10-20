@@ -19,6 +19,9 @@ GET /api/analytics/monthly-trend     → Monthly admissions / discharges chart
 GET /api/analytics/dept-activity     → Department activity bar chart
 GET /api/analytics/patient-flow      → Patient Flow page (all-in-one)
 GET /api/analytics/bed-availability  → Bed Availability page (all-in-one)
+GET /api/analytics/nurse-insights    → Busiest wards, staff per shift, age mix, bed stay
+GET /api/analytics/recent-arrivals    → Arrivals per day/week for the chosen dates (default: last 14 days of data)
+GET /api/analytics/data-range        → First/last day with visit data
 GET /api/analytics/departments       → Department list for filter dropdowns
 GET /api/analytics/data-quality      → Read-only data-quality report (admin roles)
 """
@@ -33,10 +36,13 @@ from app.analytics.filters import Filters
 from app.analytics.models import (
     BedAvailabilityResponse,
     DataQualityResponse,
+    DataRangeResponse,
     DeptActivityResponse,
     KPIResponse,
     MonthlyTrendResponse,
+    NurseInsightsResponse,
     PatientFlowResponse,
+    RecentArrivalsResponse,
 )
 from app.core.permissions import (
     BED_AVAILABILITY_ROLES,
@@ -98,6 +104,36 @@ def bed_availability(
     db=Depends(get_db),
 ):
     return controller.get_bed_availability(db, f)
+
+
+@router.get("/nurse-insights", response_model=NurseInsightsResponse,
+            summary="Ward load, staffing, age mix and bed stay for the nurse view")
+def nurse_insights(
+    _user: TokenUser = Depends(require_roles(*BED_AVAILABILITY_ROLES)),
+    f: Filters = Depends(get_filters),
+    db=Depends(get_db),
+):
+    return controller.get_nurse_insights(db, f)
+
+
+@router.get("/recent-arrivals", response_model=RecentArrivalsResponse,
+            summary="Visits registered per day (or week) for the chosen dates, default last 14 days of data")
+def recent_arrivals(
+    _user: TokenUser = Depends(require_roles(*OVERVIEW_ROLES)),
+    f: Filters = Depends(get_filters),
+    db=Depends(get_db),
+):
+    return controller.get_recent_arrivals(db, f)
+
+
+@router.get("/data-range", response_model=DataRangeResponse,
+            summary="First and last day with visit data (anchors the date presets)")
+def data_range(
+    _user: TokenUser = Depends(require_roles(*OVERVIEW_ROLES)),
+    f: Filters = Depends(get_filters),
+    db=Depends(get_db),
+):
+    return controller.get_data_range(db, f)
 
 
 @router.get("/departments", summary="Departments the caller may see (for filter dropdowns)")

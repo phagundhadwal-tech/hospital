@@ -118,6 +118,22 @@ input, select { font-family: inherit; }
 .logout-btn { color: var(--text-dim); transition: color .2s; padding: 2px; }
 .logout-btn:hover { color: var(--rose); }
 
+.confirm-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15,23,42,0.45);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.confirm-dialog {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  max-width: 400px; width: 100%; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+}
+.confirm-dialog h3 { margin: 0 0 8px; color: var(--text-primary); }
+.confirm-dialog p { margin: 0 0 20px; color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.confirm-actions button { padding: 8px 16px; border-radius: 8px; cursor: pointer; font: inherit; }
+.confirm-cancel { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
+.confirm-ok { background: var(--rose); border: 1px solid var(--rose); color: #fff; }
+
 .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .topbar {
@@ -150,13 +166,22 @@ input, select { font-family: inherit; }
 .card-sub   { font-size: 0.75rem; color: var(--text-muted); }
 
 /* ── KPI grid ──────────────────────────────────────────────────────────────── */
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 28px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px; }
+.kpi-grid.kpi-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-grid.kpi-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .kpi-card { padding: 14px 12px; } .kpi-value { font-size: 1.35rem; } }
+/* Phones only: 2 columns, a lone last card spans the full row so there's no L-shape */
+@media (max-width: 640px) {
+  .kpi-grid, .kpi-grid.kpi-grid-4, .kpi-grid.kpi-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-grid > .kpi-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 .kpi-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px 22px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 0;
   transition: var(--transition);
   position: relative; overflow: hidden;
 }
@@ -170,7 +195,7 @@ input, select { font-family: inherit; }
 .kpi-header { display: flex; align-items: center; justify-content: space-between; }
 .kpi-icon   { padding: 8px; border-radius: var(--radius-sm); display: flex; }
 .kpi-label  { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.kpi-value  { font-size: 2rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
+.kpi-value  { font-size: 1.65rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
 .kpi-trend  { font-size: 0.72rem; color: var(--text-dim); }
 
 /* ── Charts ────────────────────────────────────────────────────────────────── */
@@ -180,7 +205,8 @@ input, select { font-family: inherit; }
 .chart-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
 
 /* ── Filters bar ───────────────────────────────────────────────────────────── */
-.filters-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+/* z-index keeps dropdowns/calendars above the (animated) cards that follow the bar */
+.filters-bar { position: relative; z-index: 20; display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
 .filter-input, .filter-select {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text-primary); padding: 8px 12px; font-size: 0.82rem;
@@ -202,6 +228,37 @@ input, select { font-family: inherit; }
   font-size: 0.82rem; transition: var(--transition);
 }
 .btn-ghost:hover { border-color: var(--border-glow); color: var(--text-primary); }
+
+/* ── Date range picker ─────────────────────────────────────────────────────── */
+.drp { position: relative; }
+.drp-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-width: 210px; }
+.drp-trigger:hover { border-color: var(--border-glow); }
+.drp-pop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 292px;
+  background: var(--bg-card); border: 1px solid var(--border-glow); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), var(--shadow-glow); padding: 14px;
+}
+.drp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.drp-title { font-size: 0.85rem; font-weight: 700; }
+.drp-nav { display: flex; padding: 6px; border-radius: var(--radius-sm); color: var(--text-muted); }
+.drp-nav:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.drp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.drp-weekdays span { text-align: center; font-size: 0.68rem; font-weight: 600; color: var(--text-dim); padding-bottom: 6px; }
+.drp-day {
+  height: 34px; font-size: 0.8rem; color: var(--text-primary); border-radius: 0;
+  transition: background .12s;
+}
+.drp-day:hover:not(:disabled) { background: var(--teal-glow); border-radius: 999px; }
+.drp-day:disabled { color: var(--text-dim); opacity: 0.35; cursor: not-allowed; }
+.drp-in { background: var(--teal-glow); }
+.drp-edge { background: var(--teal); color: #fff; font-weight: 700; border-radius: 999px; }
+.drp-edge:hover:not(:disabled) { background: var(--teal-dim); border-radius: 999px; }
+.drp-edge-l { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.drp-edge-r { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.drp-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 0.72rem; color: var(--text-muted); }
+.drp-clear { font-size: 0.74rem; font-weight: 600; color: var(--teal); }
+.drp-clear:hover { text-decoration: underline; }
+@media (max-width: 480px) { .drp-pop { width: min(292px, calc(100vw - 32px)); } }
 
 /* ── Spinner ───────────────────────────────────────────────────────────────── */
 .spinner-wrap  { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 40vh; gap: 16px; }

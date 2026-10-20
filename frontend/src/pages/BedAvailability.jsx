@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { BedDouble, CheckCircle, Wrench, Clock } from 'lucide-react'
+import { BedDouble, CheckCircle, Wrench } from 'lucide-react'
 import { analyticsApi, isCancelled, describeError } from '../api/client'
 import { useAuth, BED_AVAIL_ROLES } from '../contexts/AuthContext'
 import { KPICard, Spinner, ErrorBanner, OccBar, BreakdownBar } from '../components/ui/UI'
@@ -9,7 +9,6 @@ const STATUS_COLORS = {
   Occupied:    'var(--rose)',
   Available:   'var(--emerald)',
   Maintenance: 'var(--amber)',
-  Reserved:    'var(--violet)',
 }
 
 export default function BedAvailability() {
@@ -67,7 +66,7 @@ function BedAvailabilityContent({ user }) {
       {!loading && data && (
         <>
           {/* KPI Cards */}
-          <div className="kpi-grid">
+          <div className="kpi-grid kpi-grid-4">
             <KPICard delay={0.00} label="Total Beds"   value={data.total_beds}
               icon={<BedDouble size={16} />}  color="var(--teal)"    bgColor="var(--teal-glow)"
               sub={`${data.operational_beds} operational`} />
@@ -79,8 +78,6 @@ function BedAvailabilityContent({ user }) {
             <KPICard delay={0.15} label="Maintenance"  value={data.maintenance}
               icon={<Wrench size={16} />}     color="var(--amber)"   bgColor="rgba(251,191,36,0.12)"
               sub="Excluded from occupancy" />
-            <KPICard delay={0.20} label="Reserved"     value={data.reserved}
-              icon={<Clock size={16} />}      color="var(--violet)"  bgColor="rgba(167,139,250,0.12)" />
           </div>
 
           {/* Status breakdown */}
@@ -88,7 +85,7 @@ function BedAvailabilityContent({ user }) {
             <div className="chart-card fade-up fade-up-3">
               <div className="chart-title"><BedDouble size={16} color="var(--teal)" /> Status Breakdown</div>
               <div className="breakdown-list" style={{ marginTop: 12 }}>
-                {data.status_breakdown.map((item,i) => (
+                {data.status_breakdown.filter(item => item.status !== 'Reserved').map((item,i) => (
                   <BreakdownBar key={i} label={item.status} count={item.count}
                     pct={item.pct} color={STATUS_COLORS[item.status] || 'var(--teal)'} />
                 ))}

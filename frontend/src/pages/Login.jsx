@@ -70,10 +70,6 @@ export default function Login() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textAlign: 'center', marginTop: 20 }}>
-          Run <code style={{ color: 'var(--teal)' }}>python backend/data/create_demo_users.py</code> to get credentials.
-        </p>
       </div>
     </div>
   )

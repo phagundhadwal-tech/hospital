@@ -112,3 +112,78 @@ def test_injection_string_is_just_a_value(db):
     f = build_filters(visit_type="x'; DROP TABLE Patient_Visits;--")
     assert repo.visit_kpis(db, f)["total_visits"] == 0
     assert db.query("SELECT COUNT(*) AS n FROM Patient_Visits")[0]["n"] == 3905
+
+
+# ── doctor / nurse insights ────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("dept", [None, 1, 2])
+def test_care_timings_and_hours_match_csv(db, csv, dept):
+    v = csv[0].copy()
+    if dept:
+        v = v[v["Department_ID"] == dept]
+    f = build_filters(None, None, str(dept) if dept else None)
+    t = repo.care_timings(db, f)
+
+    def mean_n(a, b):
+        d = (pd.to_datetime(v[b]) - pd.to_datetime(v[a])).dt.total_seconds() / 60
+        d = d[d >= 0]
+        return round(d.mean(), 1), len(d)
+
+    assert (t["consultation_min"], t["consultation_n"]) == mean_n("Consultation_Start_Time", "Consultation_End_Time")
+    assert (t["reg_to_triage_min"], t["reg_to_triage_n"]) == mean_n("Registration_Time", "Triage_Time")
+    hours = repo.visits_by_hour(db, f)
+    assert len(hours) == 24 and sum(h["count"] for h in hours) == len(v)
+
+
+def test_cancellation_reasons_sum_to_cancelled_visits(db, csv):
+    v = csv[0]
+    f = build_filters()
+    reasons = svc.patient_flow(db, f)["cancellation_reasons"]
+    assert sum(r["count"] for r in reasons) == int((v["Visit_Status"] == "Cancelled").sum())
+    assert "Not Applicable" not in {r["reason"] for r in reasons}
+
+
+@pytest.mark.parametrize("dept", [None, 2])
+def test_nurse_insights_shape_and_totals(db, dept):
+    f = build_filters(None, None, str(dept) if dept else None)
+    n = svc.nurse_insights(db, f)
+    assert sum(a["count"] for a in n["age_groups"]) == repo.visit_kpis(db, f)["current_admissions"]
+    assert len(n["busiest_wards"]) <= 5
+    pcts = [w["occupancy_pct"] for w in n["busiest_wards"]]
+    assert pcts == sorted(pcts, reverse=True)
+    assert [s["shift"] for s in n["staff_by_shift"]] == ["Morning", "Evening", "Night"]
+
+
+@pytest.mark.parametrize("dept", [None, 1, 3])
+def test_recent_arrivals_match_csv(db, csv, dept):
+    v = csv[0].copy()
+    if dept:
+        v = v[v["Department_ID"] == dept]
+    r = repo.recent_arrivals(db, build_filters(None, None, str(dept) if dept else None))
+    reg = pd.to_datetime(v["Registration_Time"])
+    last = reg.max().normalize()
+    assert r["through"] == last.date().isoformat()
+    assert len(r["days"]) == 14
+    window = reg[reg >= last - pd.Timedelta(days=13)]
+    assert sum(d["total"] for d in r["days"]) == len(window)
+    assert all(d["total"] == sum(d["by_type"].values()) for d in r["days"])
+
+
+def test_recent_arrivals_follow_dates_and_go_weekly_when_long(db, csv):
+    v = csv[0]
+    reg = pd.to_datetime(v["Registration_Time"])
+    short = repo.recent_arrivals(db, build_filters("2026-09-01", "2026-09-10"))
+    assert short["bucket"] == "day" and len(short["days"]) == 10
+    assert sum(d["total"] for d in short["days"]) == int(((reg >= "2026-09-01") & (reg < "2026-09-11")).sum())
+
+    everything = repo.recent_arrivals(db, build_filters(reg.min().date().isoformat(), reg.max().date().isoformat()))
+    assert everything["bucket"] == "week"
+    assert sum(d["total"] for d in everything["days"]) == len(v)
+
+    assert repo.recent_arrivals(db, build_filters("2030-01-01", "2030-01-07"))["days"][0]["total"] == 0
+
+
+def test_data_range_matches_csv(db, csv):
+    reg = pd.to_datetime(csv[0]["Registration_Time"])
+    r = repo.data_range(db, None)
+    assert r == {"earliest": reg.min().date().isoformat(), "latest": reg.max().date().isoformat()}

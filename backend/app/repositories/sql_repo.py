@@ -22,6 +22,7 @@ DATA RULES (see docs/METRICS.md)
 
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.analytics.filters import Filters
@@ -30,15 +31,19 @@ from app.core.constants import (
     BED_MAINTENANCE,
     BED_OCCUPIED,
     BED_RESERVED,
+    REASON_NOT_APPLICABLE,
+    STATUS_CANCELLED,
     STATUS_ONGOING,
     T_BED_ASSIGNMENTS,
     T_BEDS,
     T_DEPARTMENTS,
+    T_PATIENTS,
+    T_STAFF,
     T_VISITS,
     T_WARDS,
     UNASSIGNED_DEPARTMENT,
 )
-from app.db.dialect import minutes_between, year_month
+from app.db.dialect import day_bucket, hour_of_day, minutes_between, year_month
 
 
 # ── small SQL builders ────────────────────────────────────────────────────────
@@ -110,6 +115,8 @@ def visit_kpis(db, f: Filters) -> dict[str, Any]:
     reg  = _and(_in_range("Registration_Time", f))
     wcnd = _and("Consultation_Start_Time IS NOT NULL", f"{wait} >= 0", _in_range("Registration_Time", f))
     cur  = f"Visit_Status = '{STATUS_ONGOING}' AND Admission_Time IS NOT NULL AND Discharge_Time IS NULL"
+    waiting = (f"Visit_Status = '{STATUS_ONGOING}' AND Consultation_Start_Time IS NULL "
+               f"AND Admission_Time IS NULL")
 
     sql = f"""
         SELECT
@@ -118,7 +125,8 @@ def visit_kpis(db, f: Filters) -> dict[str, Any]:
             SUM(CASE WHEN {dis}  THEN 1 ELSE 0 END)                         AS discharges,
             AVG(CASE WHEN {wcnd} THEN CAST({wait} AS FLOAT) END)            AS avg_wait_minutes,
             SUM(CASE WHEN {wcnd} THEN 1 ELSE 0 END)                         AS wait_samples,
-            SUM(CASE WHEN {cur}  THEN 1 ELSE 0 END)                         AS current_admissions
+            SUM(CASE WHEN {cur}  THEN 1 ELSE 0 END)                         AS current_admissions,
+            SUM(CASE WHEN {waiting} THEN 1 ELSE 0 END)                      AS waiting_now
         FROM {vt}
         WHERE {_and(_visit_base(f))}
     """
@@ -131,7 +139,208 @@ def visit_kpis(db, f: Filters) -> dict[str, Any]:
         "avg_wait_minutes":   round(float(avg), 1) if avg is not None else None,
         "wait_samples":       _i(row["wait_samples"]),
         "current_admissions": _i(row["current_admissions"]),
+        "waiting_now":        _i(row["waiting_now"]),
     }
+
+
+def _avg(v: Any, places: int = 1) -> float | None:
+    return round(float(v), places) if v is not None else None
+
+
+def care_timings(db, f: Filters) -> dict[str, Any]:
+    """
+    Average durations for the doctor view. Each average only uses rows where both
+    timestamps exist and the duration is >= 0; the matching *_samples count says how
+    many rows that was (Triage_Time is empty for many visits, so it is much smaller).
+    Stage metrics follow Registration_Time in range; length of stay follows Discharge_Time.
+    """
+    vt, d = db.table(T_VISITS), db.dialect
+    to_triage  = minutes_between(d, "Registration_Time", "Triage_Time")
+    triage_to  = minutes_between(d, "Triage_Time", "Consultation_Start_Time")
+    consult    = minutes_between(d, "Consultation_Start_Time", "Consultation_End_Time")
+    stay       = minutes_between(d, "Admission_Time", "Discharge_Time")
+
+    reg = _in_range("Registration_Time", f)
+    c_tri  = _and(f"{to_triage} >= 0", reg)
+    c_wait = _and(f"{triage_to} >= 0", reg)
+    c_cons = _and(f"{consult} >= 0", reg)
+    c_stay = _and(f"{stay} >= 0", _in_range("Discharge_Time", f))
+
+    sql = f"""
+        SELECT
+            AVG(CASE WHEN {c_tri}  THEN CAST({to_triage} AS FLOAT) END) AS reg_to_triage,
+            SUM(CASE WHEN {c_tri}  THEN 1 ELSE 0 END)                   AS reg_to_triage_n,
+            AVG(CASE WHEN {c_wait} THEN CAST({triage_to} AS FLOAT) END) AS triage_to_consult,
+            SUM(CASE WHEN {c_wait} THEN 1 ELSE 0 END)                   AS triage_to_consult_n,
+            AVG(CASE WHEN {c_cons} THEN CAST({consult} AS FLOAT) END)   AS consult_len,
+            SUM(CASE WHEN {c_cons} THEN 1 ELSE 0 END)                   AS consult_len_n,
+            AVG(CASE WHEN {c_stay} THEN CAST({stay} AS FLOAT) END)      AS stay_minutes,
+            SUM(CASE WHEN {c_stay} THEN 1 ELSE 0 END)                   AS stay_n
+        FROM {vt}
+        WHERE {_and(_visit_base(f))}
+    """
+    r = db.query(sql, _params(f))[0]
+    stay_min = _avg(r["stay_minutes"], 4)
+    return {
+        "reg_to_triage_min":     _avg(r["reg_to_triage"]),
+        "reg_to_triage_n":       _i(r["reg_to_triage_n"]),
+        "triage_to_consult_min": _avg(r["triage_to_consult"]),
+        "triage_to_consult_n":   _i(r["triage_to_consult_n"]),
+        "consultation_min":      _avg(r["consult_len"]),
+        "consultation_n":        _i(r["consult_len_n"]),
+        "avg_stay_hours":        round(stay_min / 60, 1) if stay_min is not None else None,
+        "stay_n":                _i(r["stay_n"]),
+    }
+
+
+def visits_by_hour(db, f: Filters) -> list[dict]:
+    vt   = db.table(T_VISITS)
+    hour = hour_of_day(db.dialect, "Registration_Time")
+    sql = f"""
+        SELECT {hour} AS hr, COUNT(*) AS cnt
+        FROM {vt}
+        WHERE {_and(_in_range('Registration_Time', f), _visit_base(f))}
+        GROUP BY {hour}
+    """
+    counts = {int(r["hr"]): _i(r["cnt"]) for r in db.query(sql, _params(f))}
+    return [{"hour": h, "count": counts.get(h, 0)} for h in range(24)]
+
+
+def cancellation_reasons(db, f: Filters) -> list[dict]:
+    vt = db.table(T_VISITS)
+    label = (f"CASE WHEN Reason_for_cancellation IS NULL OR Reason_for_cancellation = '{REASON_NOT_APPLICABLE}' "
+             f"THEN 'Not recorded' ELSE Reason_for_cancellation END")
+    where = _and(f"Visit_Status = '{STATUS_CANCELLED}'", _in_range("Registration_Time", f), _visit_base(f))
+    sql = f"""
+        SELECT {label} AS label, COUNT(*) AS cnt
+        FROM {vt}
+        WHERE {where}
+        GROUP BY {label}
+        ORDER BY cnt DESC, label
+    """
+    return [{"label": r["label"], "count": _i(r["cnt"])} for r in db.query(sql, _params(f))]
+
+
+def _to_date(v: Any) -> date | None:
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    return datetime.fromisoformat(str(v).replace("T", " ")).date()
+
+
+def data_range(db, department_id: int | None) -> dict[str, str | None]:
+    """First and last day that has a registered visit (used to anchor the date presets)."""
+    vt = db.table(T_VISITS)
+    dep = "WHERE Department_ID = :dept" if department_id is not None else ""
+    params = {"dept": department_id} if department_id is not None else {}
+    r = db.query(f"SELECT MIN(Registration_Time) AS lo, MAX(Registration_Time) AS hi FROM {vt} {dep}", params)[0]
+    lo, hi = _to_date(r["lo"]), _to_date(r["hi"])
+    return {"earliest": lo.isoformat() if lo else None, "latest": hi.isoformat() if hi else None}
+
+
+MAX_ARRIVAL_DAYS = 366      # longest window returned
+WEEKLY_AFTER_DAYS = 92      # longer windows are summed per week so the chart stays readable
+
+
+def recent_arrivals(db, f: Filters, default_days: int = 14) -> dict[str, Any]:
+    """
+    Visits registered per day (or per week for long windows), split by visit type.
+    Without dates the window is the `default_days` days ending on the most recent
+    Registration_Time in scope (not on the wall clock), so a department whose data stops
+    a few days ago still shows its latest activity. With start/end dates it follows them.
+    """
+    vt  = db.table(T_VISITS)
+    dep = "Department_ID = :dept" if f.department_id is not None else ""
+    params: dict[str, Any] = {"dept": f.department_id} if f.department_id is not None else {}
+    latest = _to_date(db.query(f"SELECT MAX(Registration_Time) AS m FROM {vt} WHERE {_and(dep)}", params)[0]["m"])
+    if latest is None:
+        return {"through": None, "bucket": "day", "days": []}
+
+    last = (f.end_exclusive - timedelta(days=1)).date() if f.end_exclusive else latest
+    first = f.start.date() if f.start else last - timedelta(days=default_days - 1)
+    first = max(first, last - timedelta(days=MAX_ARRIVAL_DAYS - 1))
+    if first > last:
+        return {"through": last.isoformat(), "bucket": "day", "days": []}
+
+    day = day_bucket(db.dialect, "Registration_Time")
+    sql = f"""
+        SELECT {day} AS d, Visit_Type AS vtype, COUNT(*) AS cnt
+        FROM {vt}
+        WHERE {_and('Registration_Time >= :s', 'Registration_Time < :e', dep)}
+        GROUP BY {day}, Visit_Type
+    """
+    params.update(s=datetime.combine(first, datetime.min.time()),
+                  e=datetime.combine(last + timedelta(days=1), datetime.min.time()))
+    by_day: dict[str, dict[str, int]] = {}
+    for r in db.query(sql, params):
+        by_day.setdefault(str(r["d"]), {})[r["vtype"]] = _i(r["cnt"])
+
+    span = (last - first).days + 1
+    weekly = span > WEEKLY_AFTER_DAYS
+    buckets: dict[str, dict[str, int]] = {}
+    for n in range(span):
+        d = first + timedelta(days=n)
+        key = (d - timedelta(days=d.weekday())).isoformat() if weekly else d.isoformat()
+        slot = buckets.setdefault(key, {})
+        for t, c in by_day.get(d.isoformat(), {}).items():
+            slot[t] = slot.get(t, 0) + c
+    return {
+        "through": last.isoformat(),
+        "bucket":  "week" if weekly else "day",
+        "days":    [{"date": k, "total": sum(v.values()), "by_type": v} for k, v in buckets.items()],
+    }
+
+
+# ── Nurse view: staffing, current patients, bed stays ─────────────────────────
+
+def staff_by_shift(db, department_id: int | None) -> list[dict]:
+    st = db.table(T_STAFF)
+    where = "AND Department_ID = :dept" if department_id is not None else ""
+    sql = f"""
+        SELECT Staff_Shift AS shift, Staff_Role AS role, COUNT(*) AS cnt
+        FROM {st}
+        WHERE Staff_Shift IS NOT NULL AND Staff_Role IN ('Nurse', 'Doctor') {where}
+        GROUP BY Staff_Shift, Staff_Role
+    """
+    params = {"dept": department_id} if department_id is not None else {}
+    return [{"shift": r["shift"], "role": r["role"], "count": _i(r["cnt"])} for r in db.query(sql, params)]
+
+
+def current_patient_birthdates(db, department_id: int | None) -> list[Any]:
+    """Date_Of_Birth of every patient currently admitted (same rule as Active Patients)."""
+    vt, pt = db.table(T_VISITS), db.table(T_PATIENTS)
+    where = "AND v.Department_ID = :dept" if department_id is not None else ""
+    sql = f"""
+        SELECT p.Date_Of_Birth AS dob
+        FROM {vt} v
+        JOIN {pt} p ON p.Patient_ID = v.Patient_ID
+        WHERE v.Visit_Status = '{STATUS_ONGOING}' AND v.Admission_Time IS NOT NULL
+          AND v.Discharge_Time IS NULL {where}
+    """
+    params = {"dept": department_id} if department_id is not None else {}
+    return [r["dob"] for r in db.query(sql, params)]
+
+
+def bed_stay(db, f: Filters) -> dict[str, Any]:
+    """Average length of a finished bed assignment, for beds in the caller's department wards."""
+    ba, beds, wards = db.table(T_BED_ASSIGNMENTS), db.table(T_BEDS), db.table(T_WARDS)
+    stay = minutes_between(db.dialect, "a.Assignment_Start", "a.Assignment_End")
+    cond = _and("a.Assignment_End IS NOT NULL", f"{stay} >= 0", _in_range("a.Assignment_End", f),
+                "w.Department_ID = :dept" if f.department_id is not None else "")
+    sql = f"""
+        SELECT AVG(CAST({stay} AS FLOAT)) AS avg_min, COUNT(*) AS n
+        FROM {ba} a
+        JOIN {beds}  b ON b.Bed_ID  = a.Bed_ID
+        JOIN {wards} w ON w.Ward_ID = b.Ward_ID
+        WHERE {cond}
+    """
+    params = {k: v for k, v in _params(f).items() if k in ("start", "end_excl", "dept")}
+    r = db.query(sql, params)[0]
+    avg = _avg(r["avg_min"], 4)
+    return {"avg_hours": round(avg / 60, 1) if avg is not None else None, "samples": _i(r["n"])}
 
 
 def monthly_trend(db, f: Filters) -> list[dict]:

@@ -42,7 +42,10 @@ export const analyticsApi = {
   deptActivity:    (params, signal) => api.get('/analytics/dept-activity',    { params, signal }),
   patientFlow:     (params, signal) => api.get('/analytics/patient-flow',     { params, signal }),
   bedAvailability: (params, signal) => api.get('/analytics/bed-availability', { params, signal }),
-  departments:     (signal)         => api.get('/analytics/departments',      { signal }),
+  recentArrivals:  (params, signal) => api.get('/analytics/recent-arrivals',  { params, signal }),
+  dataRange:       (signal)         => api.get('/analytics/data-range',       { signal }),
+  nurseInsights:   (params, signal) => api.get('/analytics/nurse-insights',   { params, signal }),
+  departments:     (signal)        => api.get('/analytics/departments',      { signal }),
 }
 
 // True when a request was cancelled on purpose (not a real failure).

@@ -47,6 +47,7 @@ class KPIResponse(BaseModel):
     bed_occupancy_pct:  float
     current_admissions: int
     wait_samples:       int = 0           # number of visits that contributed to avg_wait_minutes
+    waiting_now:        int = 0           # Ongoing, not admitted, consultation not started (live snapshot)
 
 
 # ── Monthly trend chart ───────────────────────────────────────────────────────
@@ -60,6 +61,25 @@ class MonthlyPoint(BaseModel):
 
 class MonthlyTrendResponse(BaseModel):
     data: list[MonthlyPoint]
+
+
+# ── Recent arrivals ────────────────────────────────────
+
+class ArrivalDay(BaseModel):
+    date:    str               # "YYYY-MM-DD"
+    total:   int
+    by_type: dict[str, int]    # visit type -> visits registered that day
+
+
+class RecentArrivalsResponse(BaseModel):
+    through: str | None        # last day of the window
+    bucket:  str = "day"       # "day", or "week" (date = the Monday) for windows over ~3 months
+    days:    list[ArrivalDay]
+
+
+class DataRangeResponse(BaseModel):
+    earliest: str | None       # first / last day with a registered visit
+    latest:   str | None
 
 
 # ── Department activity chart ─────────────────────────────────────────────────
@@ -90,6 +110,29 @@ class StatusBreakdown(BaseModel):
     pct:    float
 
 
+class CareTimings(BaseModel):
+    """Average durations; each *_n is how many visits the average is based on."""
+    reg_to_triage_min:     float | None
+    reg_to_triage_n:       int
+    triage_to_consult_min: float | None
+    triage_to_consult_n:   int
+    consultation_min:      float | None
+    consultation_n:        int
+    avg_stay_hours:        float | None
+    stay_n:                int
+
+
+class HourCount(BaseModel):
+    hour:  int   # 0-23, by Registration_Time
+    count: int
+
+
+class CancellationReason(BaseModel):
+    reason: str
+    count:  int
+    pct:    float
+
+
 class PatientFlowResponse(BaseModel):
     """
     Response for GET /api/analytics/patient-flow.
@@ -111,6 +154,9 @@ class PatientFlowResponse(BaseModel):
     status_breakdown:      list[StatusBreakdown]
     monthly_trend:         list[MonthlyPoint]
     dept_activity:         list[DeptActivityPoint]
+    timings:               CareTimings
+    visits_by_hour:        list[HourCount]
+    cancellation_reasons:  list[CancellationReason]
 
 
 # ── Bed Availability ──────────────────────────────────────────────────────────
@@ -159,6 +205,44 @@ class BedAvailabilityResponse(BaseModel):
     occupancy_pct:    float
     status_breakdown: list[BedStatusBreakdown]
     ward_occupancy:   list[WardOccupancy]
+
+
+# ── Nurse insights ────────────────────────────────────────────────────────────
+
+class BusyWard(BaseModel):
+    ward_id:          str
+    ward_name:        str
+    ward_type:        str
+    occupied:         int
+    operational_beds: int
+    available:        int
+    occupancy_pct:    float
+
+
+class AgeGroupCount(BaseModel):
+    group: str
+    count: int
+    pct:   float
+
+
+class ShiftStaff(BaseModel):
+    shift:   str
+    nurses:  int
+    doctors: int
+
+
+class NurseInsightsResponse(BaseModel):
+    """
+    busiest_wards      : top 5 wards by occupancy (same formula as bed availability).
+    age_groups         : currently admitted patients by age group.
+    staff_by_shift     : nurses and doctors rostered per shift (Staff.Staff_Shift).
+    avg_bed_stay_hours : mean length of finished bed assignments in the caller's wards.
+    """
+    busiest_wards:      list[BusyWard]
+    age_groups:         list[AgeGroupCount]
+    staff_by_shift:     list[ShiftStaff]
+    avg_bed_stay_hours: float | None
+    bed_stay_samples:   int
 
 
 # ── Data quality ──────────────────────────────────────────────────────────────

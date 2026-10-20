@@ -11,6 +11,7 @@ No HTTP and no FastAPI in here.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 from app.analytics.filters import Filters
@@ -39,7 +40,16 @@ def kpis(db, f: Filters) -> dict[str, Any]:
         "bed_occupancy_pct":  beds["occupancy_pct"],
         "current_admissions": k["current_admissions"],
         "wait_samples":       k["wait_samples"],
+        "waiting_now":        k["waiting_now"],
     }
+
+
+def recent_arrivals(db, f: Filters) -> dict[str, Any]:
+    return repo.recent_arrivals(db, f)
+
+
+def data_range(db, f: Filters) -> dict[str, str | None]:
+    return repo.data_range(db, f.department_id)
 
 
 def monthly_trend(db, f: Filters) -> list[dict]:
@@ -66,6 +76,71 @@ def patient_flow(db, f: Filters) -> dict[str, Any]:
         "status_breakdown":     _with_pct(repo.visit_status_counts(db, f), "status"),
         "monthly_trend":        repo.monthly_trend(db, f),
         "dept_activity":        repo.dept_activity(db, f),
+        "timings":              repo.care_timings(db, f),
+        "visits_by_hour":       repo.visits_by_hour(db, f),
+        "cancellation_reasons": _top_reasons(repo.cancellation_reasons(db, f)),
+    }
+
+
+def _top_reasons(rows: list[dict], keep: int = 6) -> list[dict]:
+    """Top `keep` reasons with the long tail folded into 'Other', each with its share of cancellations."""
+    total = sum(r["count"] for r in rows)
+    head, tail = rows[:keep], rows[keep:]
+    if tail:
+        head = head + [{"label": "Other reasons", "count": sum(r["count"] for r in tail)}]
+    return [{"reason": r["label"], "count": r["count"], "pct": pct(r["count"], total)} for r in head]
+
+
+# ── Nurse view ────────────────────────────────────────────────────────────────
+
+AGE_GROUPS = ("Under 18", "18–39", "40–64", "65+")
+SHIFT_ORDER = ("Morning", "Evening", "Night")
+
+
+def _age_group(dob: Any, today: date) -> str | None:
+    if dob is None:
+        return None
+    if isinstance(dob, datetime):
+        dob = dob.date()
+    elif isinstance(dob, str):
+        try:
+            dob = date.fromisoformat(dob[:10])
+        except ValueError:
+            return None
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    if age < 0:
+        return None
+    return AGE_GROUPS[0] if age < 18 else AGE_GROUPS[1] if age < 40 else AGE_GROUPS[2] if age < 65 else AGE_GROUPS[3]
+
+
+def nurse_insights(db, f: Filters) -> dict[str, Any]:
+    beds = bed_availability(db, f.department_id)
+    busiest = [
+        {k: w[k] for k in ("ward_id", "ward_name", "ward_type", "occupied", "operational_beds",
+                           "available", "occupancy_pct")}
+        for w in beds["ward_occupancy"][:5]          # already sorted busiest first
+    ]
+
+    counts = {g: 0 for g in AGE_GROUPS}
+    today = date.today()
+    for dob in repo.current_patient_birthdates(db, f.department_id):
+        g = _age_group(dob, today)
+        if g:
+            counts[g] += 1
+    total = sum(counts.values())
+
+    by_shift: dict[str, dict[str, int]] = {s: {"nurses": 0, "doctors": 0} for s in SHIFT_ORDER}
+    for r in repo.staff_by_shift(db, f.department_id):
+        slot = by_shift.setdefault(r["shift"], {"nurses": 0, "doctors": 0})
+        slot["nurses" if r["role"] == "Nurse" else "doctors"] += r["count"]
+
+    stay = repo.bed_stay(db, f)
+    return {
+        "busiest_wards":  busiest,
+        "age_groups":     [{"group": g, "count": c, "pct": pct(c, total)} for g, c in counts.items()],
+        "staff_by_shift": [{"shift": s, **v} for s, v in by_shift.items()],
+        "avg_bed_stay_hours": stay["avg_hours"],
+        "bed_stay_samples":   stay["samples"],
     }
 
 
