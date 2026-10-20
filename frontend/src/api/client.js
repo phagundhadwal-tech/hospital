@@ -9,11 +9,14 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// On 401, clear token and redirect to login
+// On 401, clear token and redirect to login.
+// A 401 from the login call itself means wrong credentials: let the login page
+// show its error instead of reloading the page and wiping the message.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const isLoginRequest = err.config?.url?.endsWith('/auth/login')
+    if (err.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('cp_token')
       localStorage.removeItem('cp_user')
       window.location.href = '/login'

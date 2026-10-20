@@ -38,6 +38,7 @@ from app.users.models import TokenUser, UserRole
 
 # Roles with unrestricted cross-department visibility
 FULL_ACCESS_ROLES: frozenset[UserRole] = frozenset({
+    UserRole.DEAN,
     UserRole.HOSPITAL_ADMIN,
     UserRole.OPERATIONS_MANAGER,
 })
@@ -47,6 +48,7 @@ OVERVIEW_ROLES: frozenset[UserRole] = frozenset(UserRole)          # all 6 roles
 
 # Roles allowed to access Patient Flow analytics
 PATIENT_FLOW_ROLES: frozenset[UserRole] = frozenset({
+    UserRole.DEAN,
     UserRole.HOSPITAL_ADMIN,
     UserRole.OPERATIONS_MANAGER,
     UserRole.DEPARTMENT_HEAD,
@@ -55,6 +57,7 @@ PATIENT_FLOW_ROLES: frozenset[UserRole] = frozenset({
 
 # Roles allowed to access Bed Availability analytics
 BED_AVAILABILITY_ROLES: frozenset[UserRole] = frozenset({
+    UserRole.DEAN,
     UserRole.HOSPITAL_ADMIN,
     UserRole.OPERATIONS_MANAGER,
     UserRole.DEPARTMENT_HEAD,

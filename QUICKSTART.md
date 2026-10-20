@@ -3,7 +3,57 @@
 **Prerequisites:** Python 3.11–3.13, Node.js 20+, SQL Server, and [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server).
 
 ## Database (once)
-Run `database/00_create_database.sql` in SSMS to create `CarePulseDB`.
+
+**1. Is SQL Server installed and running?** (PowerShell)
+```powershell
+Get-Service | Where-Object { $_.Name -like '*SQL*' }
+```
+- `MSSQLSERVER` running → default instance, use `SERVER=localhost`.
+- `MSSQL$SQLEXPRESS` running → named instance, use `SERVER=localhost\SQLEXPRESS`.
+- Stopped → start it: `Start-Service 'MSSQL$SQLEXPRESS'` (or `MSSQLSERVER`) in an admin PowerShell.
+- Nothing listed → install it (free, dev use):
+  ```powershell
+  winget install Microsoft.SQLServer.2022.Express
+  winget install Microsoft.SQLServerManagementStudio.21   # optional: SSMS GUI
+  winget install Microsoft.msodbcsql.18                   # ODBC Driver 18, if not installed
+  ```
+  Or download manually: [SQL Server Express](https://www.microsoft.com/sql-server/sql-server-downloads) (choose *Basic*; it installs `SQLEXPRESS`). Open a new terminal afterwards so the service and PATH are picked up. On macOS/Linux, run SQL Server in Docker instead:
+  ```bash
+  docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='YourStrong!Passw0rd' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+  ```
+  (then use `UID=sa;PWD=...` – option C in `.env.example`).
+
+**2. Create the database** (skip if it already exists – it is safe to re-run):
+```powershell
+sqlcmd -S "localhost\SQLEXPRESS" -E -C -i database/00_create_database.sql
+```
+Use `-S localhost` for a default instance, or `-U sa -P <password>` instead of `-E` for a SQL login. No `sqlcmd`? Run `database/00_create_database.sql` in SSMS instead.
+
+**3. Verify:** `sqlcmd -S "localhost\SQLEXPRESS" -E -C -Q "SELECT name FROM sys.databases"` should list `CarePulseDB`.
+
+**4. (Optional) Use a SQL user name and password instead of Windows login.**
+Skip this if Windows login (`Trusted_Connection=yes`) works for you. Needed for Docker/Linux or a remote server.
+
+a. Enable mixed-mode authentication: in SSMS, right-click the server → *Properties* → *Security* → select **SQL Server and Windows Authentication mode**, then restart the service:
+```powershell
+Restart-Service 'MSSQL$SQLEXPRESS'      # or MSSQLSERVER, in an admin PowerShell
+```
+b. Create a login and give it access to `CarePulseDB` only (change the password; run as an admin Windows login):
+```powershell
+sqlcmd -S "localhost\SQLEXPRESS" -E -C -Q "CREATE LOGIN carepulse WITH PASSWORD = 'ChangeMe!Str0ngPass', CHECK_POLICY = ON;"
+sqlcmd -S "localhost\SQLEXPRESS" -E -C -d CarePulseDB -Q "CREATE USER carepulse FOR LOGIN carepulse; ALTER ROLE db_owner ADD MEMBER carepulse;"
+```
+`db_owner` lets the loader script create tables. For production, grant only `db_datareader`/`db_datawriter` after the first load.
+
+c. In `backend/.env`, use option C with that user (comment out the Windows-login line):
+```
+DATABASE_URL=DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost\SQLEXPRESS;DATABASE=CarePulseDB;UID=carepulse;PWD=ChangeMe!Str0ngPass;Encrypt=yes;TrustServerCertificate=yes
+```
+Write it on one line, no quotes. If the password contains `;` or `}`, wrap it in braces: `PWD={pa;ss}}word}` (a literal `}` is doubled). Never commit `.env`.
+
+d. Test: `sqlcmd -S "localhost\SQLEXPRESS" -U carepulse -P "ChangeMe!Str0ngPass" -C -d CarePulseDB -Q "SELECT 1"`. If it fails with *Login failed*, mixed mode isn't on or the service wasn't restarted.
+
+Then set `DATABASE_URL` in `backend/.env` to match your instance (see the options in `.env.example`). A wrong `SERVER` is the usual cause of the *"Named Pipes Provider: Could not open a connection"* error.
 
 ## Backend (FastAPI, port 8000)
 ```powershell
@@ -13,7 +63,7 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env              # macOS/Linux: cp .env.example .env
 ```
-Edit `backend/.env`: set `JWT_SECRET` (`python -c "import secrets; print(secrets.token_hex(32))"`) and `DATABASE_URL`.
+Edit `backend/.env`: set `JWT_SECRET` (`python -c "import secrets; print(secrets.token_hex(32))"`) and `DATABASE_URL` (the `SERVER=` value must match your instance from the Database step; for `SQLEXPRESS` comment out option A and enable option B).
 
 First run only:
 ```powershell

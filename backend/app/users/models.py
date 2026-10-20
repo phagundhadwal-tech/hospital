@@ -28,6 +28,7 @@ class UserRole(str, Enum):
     Inheriting from str makes roles JSON-serialisable (FastAPI returns "Doctor"
     not "<UserRole.DOCTOR: 'Doctor'>").
     """
+    DEAN                = "Dean"
     HOSPITAL_ADMIN      = "Hospital Admin"
     OPERATIONS_MANAGER  = "Operations Manager"
     DEPARTMENT_HEAD     = "Department Head"
