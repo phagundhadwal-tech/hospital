@@ -9,8 +9,8 @@ import { useAuth, PATIENT_FLOW_ROLES } from '../contexts/AuthContext'
 import { KPICard, Spinner, ErrorBanner, BreakdownBar } from '../components/ui/UI'
 import AccessDenied from './AccessDenied'
 
-const PIE_COLORS = { Inpatient:'#38bdf8', Outpatient:'#34d399', Emergency:'#fb7185' }
-const STATUS_COLORS = ['#38bdf8','#34d399','#fbbf24','#fb7185','#a78bfa','#64748b']
+const PIE_COLORS = { Inpatient:'#0284c7', Outpatient:'#059669', Emergency:'#e11d48' }
+const STATUS_COLORS = ['#0284c7','#059669','#d97706','#e11d48','#7c3aed','#64748b']
 
 export default function PatientFlow() {
   const { user } = useAuth()

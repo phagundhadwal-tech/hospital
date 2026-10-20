@@ -17,16 +17,35 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.constants import DEFAULT_TABLE_NAMES
+
 _BACKEND_DIR = Path(__file__).resolve().parent.parent          # .../backend
 _DEFAULT_USERS_CSV = str(_BACKEND_DIR / "data" / "users.csv")
 _IDENT = re.compile(r"^[A-Za-z0-9_]*$")                         # safe SQL identifier part
 
 
 class Settings(BaseSettings):
+    # ── Application ───────────────────────────────────────────────────────────
+    APP_TITLE: str = "CarePulse Hospital Management API"
+    APP_DESCRIPTION: str = (
+        "REST API for the CarePulse HMS dashboard. "
+        "All endpoints require a valid JWT Bearer token except POST /api/auth/login."
+    )
+    APP_VERSION: str = "1.0.0"
+    API_PREFIX: str = "/api"
+    DOCS_URL: str = "/docs"
+    REDOC_URL: str = "/redoc"
+    LOG_LEVEL: str = "INFO"
+
     # ── JWT ───────────────────────────────────────────────────────────────────
     JWT_SECRET: str                                   # REQUIRED
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    BCRYPT_ROUNDS: int = 12
+
+    # ── Request validation ────────────────────────────────────────────────────
+    DATE_FORMAT: str = "%Y-%m-%d"
+    FILTER_TEXT_MAX_LENGTH: int = 40
 
     # ── Database (SQL Server) ─────────────────────────────────────────────────
     # Either a SQLAlchemy URL  (mssql+pyodbc://...)  or a raw ODBC string
@@ -35,6 +54,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     DB_SCHEMA: str = "dbo"            # schema that owns the tables
     DB_TABLE_SUFFIX: str = ""         # e.g. "_V6" if your tables are named PATIENT_VISITS_V6
+    # Logical table name -> physical table name (before DB_TABLE_SUFFIX).
+    # Override with a JSON object in .env, e.g. DB_TABLE_NAMES={"Beds":"BEDS"}
+    DB_TABLE_NAMES: dict[str, str] = dict(DEFAULT_TABLE_NAMES)
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_RECYCLE_SECONDS: int = 1800

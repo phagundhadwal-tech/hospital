@@ -19,6 +19,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.config import get_settings
+from app.core.constants import DEFAULT_TABLE_NAMES
 from app.core.exceptions import DatabaseQueryError, DatabaseUnavailableError
 
 log = logging.getLogger("carepulse.db")
@@ -53,25 +54,22 @@ def build_engine_url(raw: str):
 class SQLAlchemyDatabase:
     """Production database handle (SQL Server)."""
 
-    def __init__(self, engine, schema: str = "dbo", suffix: str = "") -> None:
+    def __init__(
+        self,
+        engine,
+        schema: str = "dbo",
+        suffix: str = "",
+        table_names: dict[str, str] | None = None,
+    ) -> None:
         self.engine = engine
         self.dialect: str = engine.dialect.name        # "mssql"
         self.schema = schema
         self.suffix = suffix
+        self.table_names = DEFAULT_TABLE_NAMES if table_names is None else table_names
 
     # -- naming -------------------------------------------------------------
     def table(self, name: str) -> str:
-        table_names = {
-                "Patient_Visits": "visits",
-                "Departments": "departments",
-                "Patients": "patients",
-                "Staff": "staff",
-                "Beds": "beds",
-                "Wards": "wards",
-                "Bed_Assignments": "bed_assignments",
-            }
-        
-        actual_name = table_names.get(name, name)
+        actual_name = self.table_names.get(name, name)
 
         if self.dialect == "mssql":
             return f"[{self.schema}].[{actual_name}{self.suffix}]"
@@ -113,7 +111,12 @@ def get_database() -> SQLAlchemyDatabase:
             connect_args={"timeout": s.DB_CONNECT_TIMEOUT_SECONDS},
         )
     engine = create_engine(url, **kwargs)
-    return SQLAlchemyDatabase(engine, schema=s.DB_SCHEMA, suffix=s.DB_TABLE_SUFFIX)
+    return SQLAlchemyDatabase(
+        engine,
+        schema=s.DB_SCHEMA,
+        suffix=s.DB_TABLE_SUFFIX,
+        table_names=s.DB_TABLE_NAMES,
+    )
 
 
 def get_db() -> SQLAlchemyDatabase:

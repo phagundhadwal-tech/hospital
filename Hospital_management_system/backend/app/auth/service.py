@@ -43,10 +43,10 @@ def verify_password(plain_text: str, hashed: str) -> bool:
 
 def hash_password(plain_text: str) -> str:
     """
-    Hash a plain-text password with bcrypt (work factor 12).
+    Hash a plain-text password with bcrypt (work factor = Settings.BCRYPT_ROUNDS).
     Used by create_demo_users.py to pre-hash passwords for users.csv.
     """
-    salt = bcrypt.gensalt(rounds=12)
+    salt = bcrypt.gensalt(rounds=get_settings().BCRYPT_ROUNDS)
     return bcrypt.hashpw(plain_text.encode("utf-8"), salt).decode("utf-8")
 
 

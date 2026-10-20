@@ -22,61 +22,29 @@ Interactive API docs are available at:
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import logging
 
-from app.analytics.router import router as analytics_router
-from app.auth.router import router as auth_router
+from fastapi import FastAPI
+
 from app.config import get_settings
-from app.core.exceptions import CarePulseError, carepulse_error_handler
+from app.middleware import register_middleware
+from app.routes import register_routes
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    logging.basicConfig(level=settings.LOG_LEVEL.upper())
 
     app = FastAPI(
-        title       = "CarePulse Hospital Management API",
-        description = (
-            "REST API for the CarePulse HMS dashboard. "
-            "All endpoints require a valid JWT Bearer token except POST /api/auth/login."
-        ),
-        version     = "1.0.0",
-        docs_url    = "/docs",
-        redoc_url   = "/redoc",
+        title       = settings.APP_TITLE,
+        description = settings.APP_DESCRIPTION,
+        version     = settings.APP_VERSION,
+        docs_url    = settings.DOCS_URL,
+        redoc_url   = settings.REDOC_URL,
     )
 
-    # ── CORS ──────────────────────────────────────────────────────────────────
-    # Allow the Vite dev server (port 5173) and any other configured origins.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins     = settings.cors_origins,
-        allow_credentials = True,
-        allow_methods     = ["*"],
-        allow_headers     = ["*"],
-    )
-
-    # ── Custom exception handler ───────────────────────────────────────────────
-    app.add_exception_handler(CarePulseError, carepulse_error_handler)
-
-    # ── Routers ───────────────────────────────────────────────────────────────
-    # All API routes are prefixed with /api so that the Vite proxy can forward
-    # /api/* requests to this server while serving the React app at /.
-    app.include_router(auth_router,      prefix="/api")
-    app.include_router(analytics_router, prefix="/api")
-
-    # Health-check endpoint — no auth required.  Useful for load-balancer
-    # liveness probes and to verify the server is running.
-    @app.get("/health", tags=["Health"], include_in_schema=False)
-    def health() -> dict:
-        return {"status": "ok", "service": "CarePulse API"}
-
-    @app.get("/health/db", tags=["Health"], include_in_schema=False)
-    def health_db() -> dict:
-        """Checks the SQL Server connection (503 with a clear message if it fails)."""
-        from app.db.database import get_database
-
-        rows = get_database().query("SELECT 1 AS ok")
-        return {"status": "ok", "database": "reachable", "result": rows[0]["ok"]}
+    register_middleware(app, settings)    # CORS, request id/logging, security headers, error handlers
+    register_routes(app, settings)        # /api/* routers and /health probes
 
     return app
 

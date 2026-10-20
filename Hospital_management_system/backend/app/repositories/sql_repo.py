@@ -25,13 +25,20 @@ from __future__ import annotations
 from typing import Any
 
 from app.analytics.filters import Filters
+from app.core.constants import (
+    BED_AVAILABLE,
+    BED_MAINTENANCE,
+    BED_OCCUPIED,
+    BED_RESERVED,
+    STATUS_ONGOING,
+    T_BED_ASSIGNMENTS,
+    T_BEDS,
+    T_DEPARTMENTS,
+    T_VISITS,
+    T_WARDS,
+    UNASSIGNED_DEPARTMENT,
+)
 from app.db.dialect import minutes_between, year_month
-
-STATUS_ONGOING = "Ongoing"
-BED_OCCUPIED = "Occupied"
-BED_AVAILABLE = "Available"
-BED_MAINTENANCE = "Maintenance"
-BED_RESERVED = "Reserved"
 
 
 # ── small SQL builders ────────────────────────────────────────────────────────
@@ -95,7 +102,7 @@ def departments(db, department_id: int | None = None) -> list[dict]:
 # ── Visit KPIs ────────────────────────────────────────────────────────────────
 
 def visit_kpis(db, f: Filters) -> dict[str, Any]:
-    vt = db.table("Patient_Visits")
+    vt = db.table(T_VISITS)
     wait = minutes_between(db.dialect, "Registration_Time", "Consultation_Start_Time")
 
     adm  = _and("Admission_Time IS NOT NULL", _in_range("Admission_Time", f))
@@ -128,7 +135,7 @@ def visit_kpis(db, f: Filters) -> dict[str, Any]:
 
 
 def monthly_trend(db, f: Filters) -> list[dict]:
-    vt   = db.table("Patient_Visits")
+    vt   = db.table(T_VISITS)
     base = _visit_base(f)
     a_m  = year_month(db.dialect, "Admission_Time")
     d_m  = year_month(db.dialect, "Discharge_Time")
@@ -151,8 +158,8 @@ def monthly_trend(db, f: Filters) -> list[dict]:
 
 
 def dept_activity(db, f: Filters) -> list[dict]:
-    dep = db.table("Departments")
-    vt  = db.table("Patient_Visits")
+    dep = db.table(T_DEPARTMENTS)
+    vt  = db.table(T_VISITS)
     other = _visit_base(f, alias="v", include_dept=False)
     visit_cond = _and("v.Visit_ID IS NOT NULL", _in_range("v.Registration_Time", f), other)
     adm_cond   = _and("v.Admission_Time IS NOT NULL", _in_range("v.Admission_Time", f), other)
@@ -176,7 +183,7 @@ def dept_activity(db, f: Filters) -> list[dict]:
 
 
 def _visit_breakdown(db, f: Filters, column: str) -> list[dict]:
-    vt = db.table("Patient_Visits")
+    vt = db.table(T_VISITS)
     where = _and(_in_range("Registration_Time", f), _visit_base(f))
     sql = f"""
         SELECT {column} AS label, COUNT(*) AS cnt
@@ -199,12 +206,12 @@ def visit_status_counts(db, f: Filters) -> list[dict]:
 # ── Beds & wards (current snapshot) ───────────────────────────────────────────
 
 def ward_bed_rows(db, department_id: int | None) -> list[dict]:
-    wards, beds, dep = db.table("Wards"), db.table("Beds"), db.table("Departments")
+    wards, beds, dep = db.table(T_WARDS), db.table(T_BEDS), db.table(T_DEPARTMENTS)
     where = "WHERE w.Department_ID = :dept" if department_id is not None else ""
     sql = f"""
         SELECT w.Ward_ID AS ward_id, w.Ward_Name AS ward_name, w.Ward_Type AS ward_type,
                w.Department_ID AS department_id,
-               COALESCE(dep.Department_Name, 'Unassigned') AS department_name,
+               COALESCE(dep.Department_Name, '{UNASSIGNED_DEPARTMENT}') AS department_name,
                COUNT(b.Bed_ID) AS total_beds,
                SUM(CASE WHEN b.Bed_Status = '{BED_OCCUPIED}'    THEN 1 ELSE 0 END) AS occupied,
                SUM(CASE WHEN b.Bed_Status = '{BED_AVAILABLE}'   THEN 1 ELSE 0 END) AS available,
@@ -231,7 +238,7 @@ def ward_bed_rows(db, department_id: int | None) -> list[dict]:
 
 
 def bed_status_counts(db, department_id: int | None) -> list[dict]:
-    wards, beds = db.table("Wards"), db.table("Beds")
+    wards, beds = db.table(T_WARDS), db.table(T_BEDS)
     where = "WHERE w.Department_ID = :dept" if department_id is not None else ""
     sql = f"""
         SELECT b.Bed_Status AS label, COUNT(*) AS cnt
@@ -248,7 +255,7 @@ def bed_status_counts(db, department_id: int | None) -> list[dict]:
 # ── Data-quality checks (read-only) ───────────────────────────────────────────
 
 def data_quality(db) -> list[dict]:
-    vt, ba, beds, wards = (db.table(n) for n in ("Patient_Visits", "Bed_Assignments", "Beds", "Wards"))
+    vt, ba, beds, wards = (db.table(n) for n in (T_VISITS, T_BED_ASSIGNMENTS, T_BEDS, T_WARDS))
     d = db.dialect
     wait   = minutes_between(d, "Registration_Time", "Consultation_Start_Time")
     tri    = minutes_between(d, "Triage_Time", "Consultation_Start_Time")
@@ -288,43 +295,3 @@ def data_quality(db) -> list[dict]:
     ]
     return [{"check": key, "description": desc, "count": _i(db.query(sql)[0]["n"])}
             for key, desc, sql in checks]
-
-def patient_flow(db, f):
-    visits = db.table("Patient_Visits")
-    departments = db.table("Departments")
-
-    sql = f"""
-        SELECT
-            d.Department_ID AS department_id,
-            d.Department_Name AS department_name,
-            COUNT(v.Visit_ID) AS patient_count,
-            AVG(
-                CASE
-                    WHEN v.Registration_Time IS NOT NULL
-                     AND v.Triage_Time IS NOT NULL
-                     AND v.Triage_Time >= v.Registration_Time
-                    THEN DATEDIFF(
-                        MINUTE,
-                        v.Registration_Time,
-                        v.Triage_Time
-                    )
-                END
-            ) AS avg_wait_minutes
-        FROM {visits} v
-        LEFT JOIN {departments} d
-            ON v.Department_ID = d.Department_ID
-        WHERE 1 = 1
-    """
-
-    params = {}
-
-    if getattr(f, "department_id", None):
-        sql += " AND v.Department_ID = :dept"
-        params["dept"] = f.department_id
-
-    sql += """
-        GROUP BY d.Department_ID, d.Department_Name
-        ORDER BY patient_count DESC
-    """
-
-    return db.query(sql, params)

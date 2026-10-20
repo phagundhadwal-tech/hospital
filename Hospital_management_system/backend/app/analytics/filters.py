@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from app.config import get_settings
 from app.core.exceptions import BadRequestError, ForbiddenError
 
 
@@ -33,13 +34,19 @@ class Filters:
     visit_status: str | None = None
 
 
+def _hint(fmt: str) -> str:
+    """Human-readable form of a strptime format, e.g. %Y-%m-%d -> YYYY-MM-DD."""
+    return fmt.replace("%Y", "YYYY").replace("%m", "MM").replace("%d", "DD")
+
+
 def _parse_date(value: str | None, name: str) -> date | None:
     if value is None or value == "":
         return None
+    fmt = get_settings().DATE_FORMAT
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
+        return datetime.strptime(value, fmt).date()
     except ValueError:
-        raise BadRequestError(f"{name} must be a date in YYYY-MM-DD format.") from None
+        raise BadRequestError(f"{name} must be a date in {_hint(fmt)} format.") from None
 
 
 def _parse_dept(value: str | int | None, what: str) -> int | None:
@@ -57,7 +64,7 @@ def _clean_text(value: str | None, name: str) -> str | None:
     value = value.strip()
     if value == "":
         return None
-    if len(value) > 40:
+    if len(value) > get_settings().FILTER_TEXT_MAX_LENGTH:
         raise BadRequestError(f"{name} is too long.")
     return value
 

@@ -2,23 +2,24 @@
 
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
-  --bg-base:      #0a0e1a;
-  --bg-surface:   #111827;
-  --bg-card:      #161d2e;
-  --bg-elevated:  #1e2a40;
-  --border:       rgba(99,115,155,0.18);
-  --border-glow:  rgba(56,189,248,0.35);
+  color-scheme:   light;
+  --bg-base:      #f4f7fb;
+  --bg-surface:   #ffffff;
+  --bg-card:      #ffffff;
+  --bg-elevated:  #e8eef6;
+  --border:       rgba(71,85,105,0.18);
+  --border-glow:  rgba(2,132,199,0.40);
 
-  --teal:         #38bdf8;
-  --teal-dim:     #0ea5e9;
-  --teal-glow:    rgba(56,189,248,0.15);
-  --emerald:      #34d399;
-  --amber:        #fbbf24;
-  --rose:         #fb7185;
-  --violet:       #a78bfa;
+  --teal:         #0284c7;
+  --teal-dim:     #0369a1;
+  --teal-glow:    rgba(2,132,199,0.10);
+  --emerald:      #059669;
+  --amber:        #d97706;
+  --rose:         #e11d48;
+  --violet:       #7c3aed;
 
-  --text-primary: #f1f5f9;
-  --text-muted:   #94a3b8;
+  --text-primary: #0f172a;
+  --text-muted:   #475569;
   --text-dim:     #64748b;
 
   --radius-sm:    6px;
@@ -26,8 +27,8 @@
   --radius-lg:    18px;
   --radius-xl:    24px;
 
-  --shadow-card:  0 4px 24px rgba(0,0,0,0.4);
-  --shadow-glow:  0 0 24px rgba(56,189,248,0.12);
+  --shadow-card:  0 2px 12px rgba(15,23,42,0.06);
+  --shadow-glow:  0 4px 20px rgba(2,132,199,0.12);
   --transition:   all 0.22s cubic-bezier(.4,0,.2,1);
 }
 
@@ -189,7 +190,7 @@ input, select { font-family: inherit; }
 .filter-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
 .btn-primary {
   background: linear-gradient(135deg, var(--teal), var(--teal-dim));
-  color: #0a0e1a; font-weight: 700; font-size: 0.82rem;
+  color: #ffffff; font-weight: 700; font-size: 0.82rem;
   padding: 8px 18px; border-radius: var(--radius-sm);
   transition: var(--transition);
 }
@@ -275,14 +276,14 @@ input, select { font-family: inherit; }
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   background: var(--bg-base);
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(56,189,248,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 50%, rgba(2,132,199,0.07) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.06) 0%, transparent 50%);
 }
 .login-card {
   width: 100%; max-width: 400px;
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius-xl); padding: 40px 36px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  box-shadow: 0 20px 60px rgba(15,23,42,0.12);
 }
 .login-logo    { text-align: center; margin-bottom: 28px; }
 .login-icon    { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, var(--teal), #6366f1); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 12px; }
@@ -301,7 +302,7 @@ input, select { font-family: inherit; }
 .btn-login {
   width: 100%; padding: 12px;
   background: linear-gradient(135deg, var(--teal), var(--teal-dim));
-  color: #0a0e1a; font-weight: 700; font-size: 0.9rem;
+  color: #ffffff; font-weight: 700; font-size: 0.9rem;
   border-radius: var(--radius-sm); margin-top: 8px;
   transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 8px;
 }
