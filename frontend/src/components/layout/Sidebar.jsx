@@ -1,13 +1,9 @@
-import { useNavigate, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Activity, BedDouble, LogOut } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { LayoutDashboard, Activity, BedDouble } from 'lucide-react'
 import { useAuth, PATIENT_FLOW_ROLES, BED_AVAIL_ROLES } from '../../contexts/AuthContext'
 
 export default function Sidebar() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-
-  const handleLogout = () => { logout(); navigate('/login') }
-  const initials = user?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '??'
+  const { user } = useAuth()
 
   return (
     <aside className="sidebar">
@@ -39,19 +35,6 @@ export default function Sidebar() {
           </NavLink>
         )}
       </nav>
-
-      <div className="sidebar-footer">
-        <div className="user-chip">
-          <div className="user-avatar">{initials}</div>
-          <div className="user-info">
-            <div className="user-name">{user?.full_name || user?.email}</div>
-            <div className="user-role">{user?.role}</div>
-          </div>
-          <button className="logout-btn" onClick={handleLogout} title="Log out">
-            <LogOut size={15} />
-          </button>
-        </div>
-      </div>
     </aside>
   )
 }
