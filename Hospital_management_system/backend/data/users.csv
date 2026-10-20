@@ -1,0 +1,4 @@
+Staff_ID,First_Name,Last_Name,Email,Role,Department_ID,Department_Name,Hashed_Password,Is_Active
+DEMO-001,Dean,Admin,dean@carepulse.local,Dean,,,$2b$12$kZmIwhJIbp9cge7AotZsJOXMGNpI2bxFx7sXO4uMj52t5b8zsKVJ.,true
+DEMO-002,David,Doctor,emrg.doctor@carepulse.local,Doctor,1,Emergency,$2b$12$5umiuXXQJuR4S7m61F6GtOfuDRMuVXrFsD69IKseowyIJQIG3Gg6.,true
+DEMO-003,Nina,Nurse,ortho.nurse@carepulse.local,Nurse,4,Orthopedics,$2b$12$EuIiN77b53XQ0kScD6UKNOgVRqYNi.RaLbTuxHzzyJX8/N1E6Zvfi,true

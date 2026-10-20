@@ -1,0 +1,26 @@
+Ward_ID,Ward_Name,Department_ID,Ward_Type,Capacity
+1,Emergency Observation Ward A,1,Emergency Ward,14
+2,Emergency Observation Ward B,1,Emergency Ward,14
+3,Emergency Observation Ward C,1,Emergency Ward,10
+4,Emergency Observation Ward D,1,Emergency Ward,10
+5,Emergency Pediatric Ward,1,Pediatric Ward,10
+6,General Medicine Ward A,2,General Ward,20
+7,General Medicine Ward B,2,General Ward,20
+8,General Medicine Ward C,2,General Ward,18
+9,General Medicine Ward D,2,General Ward,18
+10,General Medicine Private Ward A,2,Private Ward,10
+11,General Medicine Private Ward B,2,Private Ward,8
+12,General Medicine Private Ward C,2,Private Ward,10
+13,General Medicine Pediatric Ward A,2,Pediatric Ward,12
+14,General Medicine Pediatric Ward B,2,Pediatric Ward,10
+15,Cardiology Ward A,3,General Ward,16
+16,Cardiology Ward B,3,General Ward,14
+17,Cardiology Private Ward A,3,Private Ward,8
+18,Cardiology Private Ward B,3,Private Ward,8
+19,Cardiology Private Ward C,3,Private Ward,10
+20,Orthopedics Ward A,4,General Ward,16
+21,Orthopedics Ward B,4,General Ward,14
+22,Orthopedics Private Ward A,4,Private Ward,8
+23,Orthopedics Private Ward B,4,Private Ward,6
+24,Orthopedics Pediatric Ward A,4,Pediatric Ward,10
+25,Orthopedics Pediatric Ward B,4,Pediatric Ward,6
