@@ -1,4 +1,4 @@
 Staff_ID,First_Name,Last_Name,Email,Role,Department_ID,Department_Name,Hashed_Password,Is_Active
-DEMO-001,Dean,Admin,dean@carepulse.local,Dean,,,$2b$12$hNgNCOx5eihNZ1kef/wZReBXoyDUAEYRux81YDbw4wRP4E5z.R0nG,true
-DEMO-002,David,Doctor,emrg.doctor@carepulse.local,Doctor,1,Emergency,$2b$12$fGoXj1sBNkYcQJjYgmDLJOxPPAYU.2bxeRZB9NSbt5PjZ3JXLGfFS,true
-DEMO-003,Nina,Nurse,ortho.nurse@carepulse.local,Nurse,4,Orthopedics,$2b$12$sW9g4ktf882208Kn5l9wUeOskH56RTU/VX.D59tm3ItYdHlhPsK9C,true
+DEMO-001,Dean,Admin,dean@carepulse.local,Dean,,,$2b$12$WsKLMq3QqR7NAy3khJQpC.eGTyJKaxCrJO4MNFBv5145s/hxVCBiK,true
+DEMO-002,David,Doctor,emrg.doctor@carepulse.local,Doctor,1,Emergency,$2b$12$g0xLngbGTpOHIbcrjsLe0O5Nc3A1qAlx/SIPh/c3EX7X6oVp5ri3C,true
+DEMO-003,Nina,Nurse,ortho.nurse@carepulse.local,Nurse,4,Orthopedics,$2b$12$X0E4JDh8UyVM2ZYM4MsSJOgRJGBqyXQyqwlkZXarttc3WmElhaW/e,true
